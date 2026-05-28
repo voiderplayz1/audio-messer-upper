@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Signal Processor Studio</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg-main: #0f1115;
+    --bg-panel: #161920;
+    --bg-surface: #1e222b;
+    --border-color: #2a303c;
+    --accent-color: #3b82f6;
+    --accent-hover: #60a5fa;
+    --text-primary: #f3f4f6;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+    --danger-color: #ef4444;
+    --success-color: #10b981;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg-main);
+    color: var(--text-primary);
+    font-family: 'Inter', sans-serif;
+    min-height: 100vh;
+    padding: 30px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .container {
+    width: 100%;
+    max-width: 900px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* HEADER */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border-color);
+    padding-bottom: 15px;
+    margin-bottom: 5px;
+  }
+
+  .header h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.5px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .header h1 span {
+    font-size: 11px;
+    background: var(--border-color);
+    color: var(--text-secondary);
+    padding: 3px 8px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  .status-badge {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-muted);
+  }
+  .status-dot.active { background: var(--danger-color); box-shadow: 0 0 8px var(--danger-color); }
+  .status-dot.ready { background: var(--success-color); box-shadow: 0 0 8px var(--success-color); }
+
+  /* PANELS */
+  .panel {
+    background: var(--bg-panel);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 24px;
+  }
+
+  .panel-title {
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    margin-bottom: 16px;
+  }
+
+  /* TOP CONTROLS / DECK */
+  .deck-grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 20px;
+  }
+
+  @media (max-width: 768px) {
+    .deck-grid { grid-template-columns: 1fr; }
+  }
+
+  .io-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  /* BUTTONS */
+  .btn {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    font-family: inherit;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 12px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.15s ease;
+  }
+
+  .btn:hover:not(:disabled) {
+    background: var(--border-color);
+    border-color: var(--text-muted);
+  }
+
+  .btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .btn.primary {
+    background: var(--accent-color);
+    border-color: var(--accent-color);
+  }
+
+  .btn.primary:hover:not(:disabled) {
+    background: var(--accent-hover);
+    border-color: var(--accent-hover);
+  }
+
+  .btn.active-rec {
+    background: var(--danger-color);
+    border-color: var(--danger-color);
+    animation: pulse 1.5s infinite;
+  }
+
+  @keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+  }
+
+  /* TIMELINE & CANVAS */
+  .timeline-container {
+    position: relative;
+    width: 100%;
+  }
+
+  .waveform-canvas {
+    width: 100%;
+    height: 100px;
+    background: #0b0d11;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    display: block;
+    cursor: pointer;
+  }
+
+  .time-info {
+    display: flex;
+    justify-content: space-between;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    margin-top: 6px;
+  }
+
+  /* PLAYER ACTIONS ROW */
+  .player-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+  }
+
+  /* TOGGLE SWITCHES (MODE BYPASS) */
+  .toggle-group {
+    display: inline-flex;
+    background: var(--bg-surface);
+    padding: 3px;
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+  }
+
+  .toggle-opt {
+    padding: 8px 14px;
+    font-size: 13px;
+    font-weight: 500;
+    border-radius: 4px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.15s;
+  }
+
+  .toggle-opt.active {
+    background: var(--bg-panel);
+    color: var(--text-primary);
+    box-shadow: 0 1px 3px rgba(0,0,0,0.2);
+    border: 1px solid var(--border-color);
+  }
+
+  /* SLIDERS GRID */
+  .sliders-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px 30px;
+  }
+
+  @media (max-width: 600px) {
+    .sliders-grid { grid-template-columns: 1fr; }
+  }
+
+  .slider-row {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .slider-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+
+  .slider-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-primary);
+  }
+
+  .slider-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 13px;
+    color: var(--accent-color);
+    font-weight: 500;
+  }
+
+  input[type=range] {
+    -webkit-appearance: none;
+    width: 100%;
+    height: 5px;
+    background: var(--bg-surface);
+    border-radius: 3px;
+    outline: none;
+  }
+
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--text-primary);
+    cursor: pointer;
+    transition: transform 0.1s;
+    border: 1px solid var(--bg-main);
+  }
+
+  input[type=range]::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+    background: var(--accent-hover);
+  }
+
+  .slider-desc {
+    font-size: 11px;
+    color: var(--text-muted);
+    line-height: 1.4;
+  }
+
+  /* PRESETS CONTAINER */
+  .presets-flex {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .preset-pill {
+    background: var(--bg-surface);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 6px 12px;
+    font-size: 12px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .preset-pill:hover {
+    border-color: var(--text-muted);
+    color: var(--text-primary);
+  }
+
+  #fileInput { display: none; }
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <div class="header">
+    <h1>Signal Processor Studio <span>v3.0</span></h1>
+    <div class="status-badge">
+      <div class="status-dot" id="statusDot"></div>
+      <span id="statusText">System Idle</span>
+    </div>
+  </div>
+
+  <div class="deck-grid">
+    <div class="panel io-group">
+      <div class="panel-title">Audio Input Source</div>
+      <button class="btn" id="recordBtn" onclick="toggleRecord()">
+        🎙️ Record Microphone
+      </button>
+      <button class="btn" onclick="document.getElementById('fileInput').click()">
+        📁 Import File Set
+      </button>
+      <input type="file" id="fileInput" accept="audio/*" onchange="loadFile(event)">
+      
+      <button class="btn" id="downloadBtn" onclick="downloadResult()" disabled style="margin-top: auto;">
+        📥 Export Master WAV
+      </button>
+    </div>
+
+    <div class="panel" style="display: flex; flex-direction: column; justify-content: space-between;">
+      <div class="panel-title" style="display: flex; justify-content: space-between; align-items: center;">
+        <span>Master Timeline Workspace</span>
+        <div class="toggle-group" id="bypassToggleGroup" style="pointer-events: none; opacity: 0.5;">
+          <div class="toggle-opt active" id="fxOnOpt" onclick="setBypass(false)">FX Active</div>
+          <div class="toggle-opt" id="fxBypassOpt" onclick="setBypass(true)">Bypass</div>
+        </div>
+      </div>
+
+      <div class="timeline-container">
+        <canvas class="waveform-canvas" id="waveCanvas" width="1100" height="200"></canvas>
+        <div class="time-info">
+          <span id="timeCurrent">00:00.00</span>
+          <span id="timeTotal">00:00.00</span>
+        </div>
+      </div>
+
+      <div class="player-actions">
+        <button class="btn primary" id="playPauseBtn" onclick="togglePlayback()" disabled style="min-width: 110px;">
+          ▶ Play
+        </button>
+        <button class="btn" id="stopBtn" onclick="stopPlayback()" disabled>
+          ■ Stop
+        </button>
+        
+        <button class="btn" id="captureBtn" onclick="toggleSegmentCapture()" disabled style="border-color: rgba(239, 68, 68, 0.3);">
+          ✂️ Capture Segment
+        </button>
+
+        <button class="btn" id="restoreBtn" onclick="restoreOriginalAudio()" style="display: none; border-color: rgba(59, 130, 246, 0.3);">
+          🔄 Restore Original
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">DSP Effects Processing Rack</div>
+    <div class="sliders-grid">
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name">Bit Depth Quantization</span>
+          <span class="slider-val" id="bitVal">16</span>
+        </div>
+        <input type="range" id="bitSlider" min="1" max="16" value="16" step="1" oninput="updateSlider('bit')">
+        <div class="slider-desc">Reduces bit depth amplitude accuracy resolution.</div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name">Downsample Rate</span>
+          <span class="slider-val" id="srVal">48k</span>
+        </div>
+        <input type="range" id="srSlider" min="0" max="100" value="100" oninput="updateSlider('sr')">
+        <div class="slider-desc">Resamples input source down to legacy sampling variables.</div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name">Hard Clip Distortion</span>
+          <span class="slider-val" id="distVal">0</span>
+        </div>
+        <input type="range" id="distSlider" min="0" max="100" value="0" oninput="updateSlider('dist')">
+        <div class="slider-desc">Applies brick-wall input gain clipping over thresholds.</div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name">Tape Pitch Flutter</span>
+          <span class="slider-val" id="wobVal">0</span>
+        </div>
+        <input type="range" id="wobSlider" min="0" max="100" value="0" oninput="updateSlider('wob')">
+        <div class="slider-desc">Simulates continuous mechanical wow & flutter artifacts.</div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name">Static Crackle & Noise</span>
+          <span class="slider-val" id="noiseVal">0</span>
+        </div>
+        <input type="range" id="noiseSlider" min="0" max="100" value="0" oninput="updateSlider('noise')">
+        <div class="slider-desc">Injects continuous low-frequency thermal hiss & randomized crackle pops.</div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name">Buffer Stutter Drops</span>
+          <span class="slider-val" id="stutterVal">0</span>
+        </div>
+        <input type="range" id="stutterSlider" min="0" max="100" value="0" oninput="updateSlider('stutter')">
+        <div class="slider-desc">Forces completely dynamic buffer iteration dropouts & loops.</div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name">Spatial Reverb Space</span>
+          <span class="slider-val" id="reverbVal">0</span>
+        </div>
+        <input type="range" id="reverbSlider" min="0" max="100" value="0" oninput="updateSlider('reverb')">
+        <div class="slider-desc">Sends array values out into parallel matrix comb acoustic filters.</div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name">Frequency Pitch Shift</span>
+          <span class="slider-val" id="pitchVal">0</span>
+        </div>
+        <input type="range" id="pitchSlider" min="-100" max="100" value="0" oninput="updateSlider('pitch')">
+        <div class="slider-desc">Alters underlying sample playback speeds globally.</div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name">Low Shelf Bass Boost</span>
+          <span class="slider-val" id="bassVal">0dB</span>
+        </div>
+        <input type="range" id="bassSlider" min="-20" max="30" value="0" oninput="updateSlider('bass')">
+        <div class="slider-desc">Direct hardware low-end amplification. Embedded into exports.</div>
+      </div>
+
+      <div class="slider-row">
+        <div class="slider-header">
+          <span class="slider-name">Master Output Level</span>
+          <span class="slider-val" id="volVal">100%</span>
+        </div>
+        <input type="range" id="volSlider" min="0" max="150" value="100" oninput="updateSlider('vol')">
+        <div class="slider-desc">Adjusts active runtime target node output volumes.</div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-title">Studio Environment Presets</div>
+    <div class="presets-flex">
+      <div class="preset-pill" onclick="applyPreset('ds')">📺 Handheld Console</div>
+      <div class="preset-pill" onclick="applyPreset('toaster')">🔥 Overdriven Line Out</div>
+      <div class="preset-pill" onclick="applyPreset('cassette')"> Extracted Cassette Tape</div>
+      <div class="preset-pill" onclick="applyPreset('voip')">📡 Telecom Data Drops</div>
+      <div class="preset-pill" onclick="applyPreset('am')">📻 AM Radio Wave</div>
+      <div class="preset-pill" onclick="applyPreset('demon')">👹 Sub-Harmonic Basement</div>
+      <div class="preset-pill" onclick="applyPreset('chipmunk')">🐿️ Accelerated Buffer</div>
+      <div class="preset-pill" onclick="applyPreset('cursed')">💀 Devastated System</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ─── STATE ARCHITECTURE ──────────────────────────────────────────────────────
+let audioCtx = null;
+let sourceBuffer = null;      
+let originalBuffer = null;    // Cache to hold safe backup of original un-trimmed track
+let destroyedBuffer = null;   
+let liveStream = null;
+let mediaRecorder = null;
+let recordedChunks = [];
+let isRecording = false;
+
+// Playback Engines
+let currentSource = null;
+let playbackGain = null;
+let isPlaying = false;
+let isPaused = false;
+let isBypass = false;
+let playbackStartTime = 0;    
+let playbackOffset = 0;       
+
+// Interactive Timeline
+let playheadAnimId = null;
+
+// Segment Crop Engine
+let isCaptureMode = false;
+let captureStartOffset = 0;
+
+// Debouncer
+let reprocessTimer = null;
+
+// ─── SLIDER CONVERSIONS ─────────────────────────────────────────────────────
+function srFromPct(pct) {
+  const rates = [2000,3000,4000,5000,8000,11025,16000,22050,32000,44100,48000];
+  const idx = Math.round(pct / 100 * (rates.length - 1));
+  return rates[idx];
+}
+function srLabel(pct) {
+  const r = srFromPct(pct);
+  return r >= 1000 ? (r/1000).toFixed(r%1000===0?0:1)+'kHz' : r+'Hz';
+}
+
+function updateSlider(type) {
+  const map = {
+    bit: ['bitSlider','bitVal', v => v],
+    sr:  ['srSlider','srVal',  v => srLabel(+v)],
+    dist:['distSlider','distVal', v => v + '%'],
+    wob: ['wobSlider','wobVal', v => v + '%'],
+    noise:['noiseSlider','noiseVal', v => v + '%'],
+    stutter:['stutterSlider','stutterVal', v => v + '%'],
+    reverb:['reverbSlider','reverbVal', v => v + '%'],
+    pitch:['pitchSlider','pitchVal', v => (v>0?'+':'')+v],
+    vol:  ['volSlider','volVal', v => v+'%'],
+    bass: ['bassSlider','bassVal', v => (v>0?'+':'')+v+'dB'],
+  };
+  const [sliderId, valId, fmt] = map[type];
+  const val = document.getElementById(sliderId).value;
+  document.getElementById(valId).textContent = fmt(val);
+
+  // Live adjustments without full DSP reruns
+  if (type === 'vol' && playbackGain) {
+    playbackGain.gain.setTargetAtTime(+val / 100, audioCtx.currentTime, 0.01);
+  }
+
+  // Trigger online recalculation on key parameters if playing
+  const dspSliders = ['bit','sr','dist','wob','noise','stutter','reverb','pitch','bass'];
+  if (dspSliders.includes(type) && sourceBuffer && !isBypass) {
+    scheduleReprocess();
+  }
+}
+
+// ─── PRESET MAPS ─────────────────────────────────────────────────────────────
+const presets = {
+  ds:       { bit:4,  sr:20, dist:25, wob:5,  noise:30, stutter:5,  reverb:5,  pitch:0,   bass:0  },
+  toaster:  { bit:14, sr:60, dist:90, wob:20, noise:60, stutter:10, reverb:35, pitch:5,   bass:-5 },
+  cassette: { bit:12, sr:40, dist:15, wob:80, noise:50, stutter:20, reverb:20, pitch:-15, bass:12 },
+  voip:     { bit:8,  sr:25, dist:10, wob:5,  noise:20, stutter:70, reverb:5,  pitch:0,   bass:-8 },
+  am:       { bit:10, sr:15, dist:30, wob:40, noise:75, stutter:8,  reverb:10, pitch:0,   bass:-10},
+  demon:    { bit:6,  sr:35, dist:50, wob:25, noise:40, stutter:15, reverb:70, pitch:-80, bass:20 },
+  chipmunk: { bit:14, sr:70, dist:20, wob:30, noise:10, stutter:5,  reverb:15, pitch:90,  bass:-12},
+  cursed:   { bit:2,  sr:5,  dist:99, wob:95, noise:90, stutter:90, reverb:80, pitch:40,  bass:25 },
+};
+
+function applyPreset(name) {
+  const p = presets[name];
+  document.getElementById('bitSlider').value = p.bit;
+  document.getElementById('srSlider').value = p.sr;
+  document.getElementById('distSlider').value = p.dist;
+  document.getElementById('wobSlider').value = p.wob;
+  document.getElementById('noiseSlider').value = p.noise;
+  document.getElementById('stutterSlider').value = p.stutter;
+  document.getElementById('reverbSlider').value = p.reverb;
+  document.getElementById('pitchSlider').value = p.pitch;
+  document.getElementById('bassSlider').value = p.bass;
+  ['bit','sr','dist','wob','noise','stutter','reverb','pitch','bass'].forEach(updateSlider);
+  if (sourceBuffer) triggerAutoProcess();
+}
+
+// ─── UTILITIES & AUDIO SETUP ─────────────────────────────────────────────────
+function getCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+
+function setStatus(state, message) {
+  const dot = document.getElementById('statusDot');
+  dot.className = 'status-dot ' + state;
+  document.getElementById('statusText').textContent = message;
+}
+
+function formatTime(secs) {
+  let m = Math.floor(secs / 60);
+  let s = Math.floor(secs % 60);
+  let ms = Math.floor((secs % 1) * 100);
+  return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}.${ms.toString().padStart(2, '0')}`;
+}
+
+// ─── FILE/MIC INPUT CHANNELS ──────────────────────────────────────────────────
+async function toggleRecord() {
+  if (isRecording) {
+    stopRecording();
+  } else {
+    await startRecording();
+  }
+}
+
+async function startRecording() {
+  try {
+    liveStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const ctx = getCtx();
+    recordedChunks = [];
+    mediaRecorder = new MediaRecorder(liveStream);
+    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+    mediaRecorder.onstop = processRecordedStream;
+    mediaRecorder.start();
+    isRecording = true;
+    
+    document.getElementById('recordBtn').classList.add('active-rec');
+    document.getElementById('recordBtn').textContent = '⏹️ Stop Recording';
+    setStatus('active', 'Recording Microphone Channel Audio...');
+  } catch(e) {
+    setStatus('', 'Input Failure: Mic Permissions Denied');
+  }
+}
+
+function stopRecording() {
+  if (mediaRecorder && isRecording) {
+    mediaRecorder.stop();
+    liveStream.getTracks().forEach(track => track.stop());
+    isRecording = false;
+    document.getElementById('recordBtn').classList.remove('active-rec');
+    document.getElementById('recordBtn').textContent = '🎙️ Record Microphone';
+  }
+}
+
+async function processRecordedStream() {
+  setStatus('active', 'Parsing Recording Stream Buffers...');
+  const blob = new Blob(recordedChunks, { type: 'audio/webm' });
+  const arrayBuffer = await blob.arrayBuffer();
+  try {
+    const ctx = getCtx();
+    sourceBuffer = await ctx.decodeAudioData(arrayBuffer);
+    setupWorkspaceOnLoad();
+    setStatus('ready', 'Microphone Capture Staged Successfully');
+  } catch(e) {
+    setStatus('', 'Decode Error Encountered: ' + e.message);
+  }
+}
+
+async function loadFile(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  setStatus('active', 'Decoding Source File Structure...');
+  const arrayBuffer = await file.arrayBuffer();
+  try {
+    const ctx = getCtx();
+    sourceBuffer = await ctx.decodeAudioData(arrayBuffer);
+    setupWorkspaceOnLoad();
+    setStatus('ready', 'Loaded Target: ' + file.name.substring(0, 20));
+  } catch(e) {
+    setStatus('', 'Structural Decode Error: ' + e.message);
+  }
+}
+
+function setupWorkspaceOnLoad() {
+  originalBuffer = sourceBuffer; // Secure immutable reference file map baseline
+  document.getElementById('restoreBtn').style.display = 'none'; // Clear legacy visible buttons
+  
+  playbackOffset = 0;
+  isBypass = false;
+  document.getElementById('fxOnOpt').className = 'toggle-opt active';
+  document.getElementById('fxBypassOpt').className = 'toggle-opt';
+  document.getElementById('bypassToggleGroup').style.pointerEvents = 'auto';
+  document.getElementById('bypassToggleGroup').style.opacity = '1';
+  document.getElementById('playPauseBtn').disabled = false;
+  document.getElementById('stopBtn').disabled = false;
+  document.getElementById('captureBtn').disabled = false;
+  document.getElementById('downloadBtn').disabled = false;
+  
+  triggerAutoProcess();
+}
+
+// ─── CONTROLLER DECK ROUTING ─────────────────────────────────────────────────
+async function triggerAutoProcess() {
+  if (!sourceBuffer) return;
+  setStatus('active', 'Recalculating DSP Chains...');
+  
+  const params = {
+    bits:    +document.getElementById('bitSlider').value,
+    srPct:   +document.getElementById('srSlider').value,
+    dist:    +document.getElementById('distSlider').value / 100,
+    wob:     +document.getElementById('wobSlider').value / 100,
+    noise:   +document.getElementById('noiseSlider').value / 100,
+    stutter: +document.getElementById('stutterSlider').value / 100,
+    reverb:  +document.getElementById('reverbSlider').value / 100,
+    pitch:   +document.getElementById('pitchSlider').value / 100,
+    bass:    +document.getElementById('bassSlider').value
+  };
+
+  destroyedBuffer = await processAudioOffline(sourceBuffer, params);
+  renderTimelineFrame();
+  setStatus('ready', 'DSP Array Pipeline Ready');
+}
+
+function scheduleReprocess() {
+  clearTimeout(reprocessTimer);
+  reprocessTimer = setTimeout(async () => {
+    if (!sourceBuffer) return;
+    const ctx = getCtx();
+    const wasPlaying = isPlaying && !isPaused;
+    
+    // Cache current location to protect stream positioning during execution
+    const duration = isBypass ? sourceBuffer.duration : (destroyedBuffer ? destroyedBuffer.duration : sourceBuffer.duration);
+    const cachedTime = wasPlaying ? (ctx.currentTime - playbackStartTime) % duration : playbackOffset;
+
+    await triggerAutoProcess();
+
+    if (wasPlaying) {
+      const activeDuration = isBypass ? sourceBuffer.duration : destroyedBuffer.duration;
+      playbackOffset = Math.min(cachedTime, activeDuration - 0.02);
+      executeAudioChain(playbackOffset);
+    }
+  }, 200);
+}
+
+function setBypass(bypassState) {
+  if (!sourceBuffer || isBypass === bypassState) return;
+  isBypass = bypassState;
+  
+  document.getElementById('fxOnOpt').className = isBypass ? 'toggle-opt' : 'toggle-opt active';
+  document.getElementById('fxBypassOpt').className = isBypass ? 'toggle-opt active' : 'toggle-opt';
+
+  const ctx = getCtx();
+  const wasPlaying = isPlaying && !isPaused;
+  
+  let oldDuration = isBypass ? (destroyedBuffer ? destroyedBuffer.duration : sourceBuffer.duration) : sourceBuffer.duration;
+  let currentLoc = wasPlaying ? (ctx.currentTime - playbackStartTime) % oldDuration : playbackOffset;
+  
+  let newDuration = isBypass ? sourceBuffer.duration : (destroyedBuffer ? destroyedBuffer.duration : sourceBuffer.duration);
+  playbackOffset = Math.min(currentLoc, newDuration - 0.02);
+
+  if (wasPlaying) {
+    executeAudioChain(playbackOffset);
+  } else {
+    renderTimelineFrame();
+  }
+}
+
+// ─── OFFLINE DSP PIPELINE ENGINE (INCLUDES EMBEDDED BASS BOOST) ───────────────
+async function processAudioOffline(buffer, params) {
+  const ctx = getCtx();
+  const sr = buffer.sampleRate;
+  const len = buffer.length;
+
+  let samples = new Float32Array(buffer.getChannelData(0));
+
+  // 1. GLOBAL RATE SHIFT
+  if (params.pitch !== 0) {
+    const rate = Math.pow(2, params.pitch * 1.5);
+    const newLen = Math.round(len / rate);
+    const pitched = new Float32Array(newLen);
+    for (let i = 0; i < newLen; i++) {
+      const srcPos = i * rate;
+      const srcIdx = Math.floor(srcPos);
+      const frac = srcPos - srcIdx;
+      const a = samples[Math.min(srcIdx, len-1)] || 0;
+      const b = samples[Math.min(srcIdx+1, len-1)] || 0;
+      pitched[i] = a + (b - a) * frac;
+    }
+    samples = pitched;
+  }
+
+  const workLen = samples.length;
+
+  // 2. BUFFER INTERACTION DROPS / STUTTER
+  if (params.stutter > 0) {
+    const prob = params.stutter * 0.004;
+    const chunkSizes = [512, 1024, 2048, 4096];
+    let i = 0;
+    while (i < workLen) {
+      if (Math.random() < prob) {
+        const sz = chunkSizes[Math.floor(Math.random() * chunkSizes.length)];
+        const loops = 1 + Math.floor(Math.random() * 4 * params.stutter);
+        const slice = samples.slice(i, i + sz);
+        for (let r = 0; r < loops && i + sz < workLen; r++) {
+          for (let j = 0; j < sz && i + j < workLen; j++) {
+            samples[i + j] = slice[j % slice.length];
+          }
+          i += sz;
+        }
+      } else {
+        i++;
+      }
+    }
+  }
+
+  // 3. WOW & FLUTTER MODULATION
+  if (params.wob > 0) {
+    const wobbled = new Float32Array(workLen);
+    const depth = params.wob * 0.015;
+    const speed = 2 + params.wob * 5;
+    for (let i = 0; i < workLen; i++) {
+      const offset = depth * Math.sin(2 * Math.PI * speed * i / sr);
+      const srcPos = i + offset * sr * 0.02;
+      const si = Math.floor(srcPos);
+      const frac = srcPos - si;
+      const a = (si >= 0 && si < workLen) ? samples[si] : 0;
+      const b = (si+1 >= 0 && si+1 < workLen) ? samples[si+1] : 0;
+      wobbled[i] = a + (b - a) * frac;
+    }
+    samples.set(wobbled);
+  }
+
+  // 4. DOWN-SAMPLING BIT DEGRADATION
+  const targetSR = srFromPct(params.srPct);
+  if (targetSR < sr) {
+    const step = Math.floor(sr / targetSR);
+    for (let i = 0; i < workLen; i++) {
+      const block = Math.floor(i / step) * step;
+      samples[i] = samples[Math.min(block, workLen - 1)];
+    }
+  }
+
+  // 5. BIT DEPTH RESCALING QUANTIZATION
+  if (params.bits < 16) {
+    const scales = Math.pow(2, params.bits);
+    for (let i = 0; i < workLen; i++) {
+      samples[i] = Math.round(samples[i] * scales) / scales;
+    }
+  }
+
+  // 6. AMPLITUDE BREAKWALL CLIPPING
+  if (params.dist > 0) {
+    const clipGain = 1 + params.dist * 20;
+    for (let i = 0; i < workLen; i++) {
+      const s = samples[i] * clipGain;
+      samples[i] = Math.max(-1, Math.min(1, s));
+    }
+  }
+
+  // 7. THERMAL NOISE & STATIC CRACKLE
+  if (params.noise > 0) {
+    const amt = params.noise * 0.35;
+    const crackle = params.noise * 0.001;
+    for (let i = 0; i < workLen; i++) {
+      samples[i] += (Math.random() * 2 - 1) * amt * 0.1;
+      if (Math.random() < crackle) {
+        samples[i] += (Math.random() * 2 - 1) * amt * 2.5;
+      }
+      samples[i] = Math.max(-1, Math.min(1, samples[i]));
+    }
+  }
+
+  // 8. COMB SPACE PARALLEL REVERB
+  if (params.reverb > 0) {
+    const wet = params.reverb * 0.7;
+    const dry = 1 - wet * 0.5;
+    const delays = [Math.round(0.029 * sr), Math.round(0.037 * sr), Math.round(0.041 * sr), Math.round(0.044 * sr)];
+    const feed = 0.4 + params.reverb * 0.45;
+    const combOut = new Float32Array(workLen);
+    
+    for (const d of delays) {
+      const buf = new Float32Array(d);
+      let idx = 0;
+      for (let i = 0; i < workLen; i++) {
+        const delayed = buf[idx];
+        const out = samples[i] + delayed * feed;
+        buf[idx] = out;
+        idx = (idx + 1) % d;
+        combOut[i] += out * 0.25;
+      }
+    }
+    for (let i = 0; i < workLen; i++) {
+      samples[i] = samples[i] * dry + combOut[i] * wet;
+      samples[i] = Math.max(-1, Math.min(1, samples[i]));
+    }
+  }
+
+  // 9. NATIVE OFFLINE BIQUAD TRANSIT FOR HARDWARE BASS ENHANCEMENT
+  // Pipes internal float maps through hardware filter components to burn into output recordings.
+  const offlineCtx = new OfflineAudioContext(1, workLen, sr);
+  const flashBuffer = offlineCtx.createBuffer(1, workLen, sr);
+  flashBuffer.copyToChannel(samples, 0);
+
+  const sourceNode = offlineCtx.createBufferSource();
+  sourceNode.buffer = flashBuffer;
+
+  const lowShelfNode = offlineCtx.createBiquadFilter();
+  lowShelfNode.type = 'lowshelf';
+  lowShelfNode.frequency.value = 140; 
+  lowShelfNode.gain.value = params.bass;
+
+  sourceNode.connect(lowShelfNode);
+  lowShelfNode.connect(offlineCtx.destination);
+  sourceNode.start(0);
+
+  const finalRenderedResult = await offlineCtx.startRendering();
+  return finalRenderedResult;
+}
+
+// ─── INTERACTIVE TIMELINE WORKSPACE CORE ──────────────────────────────────────
+function getActiveBuffer() {
+  return isBypass ? sourceBuffer : (destroyedBuffer || sourceBuffer);
+}
+
+function getCurrentTime() {
+  const buf = getActiveBuffer();
+  if (!buf) return 0;
+  if (isPlaying) {
+    if (isPaused) return playbackOffset;
+    const elapsed = audioCtx.currentTime - playbackStartTime;
+    return elapsed % buf.duration;
+  }
+  return playbackOffset;
+}
+
+function renderTimelineFrame() {
+  const canvas = document.getElementById('waveCanvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  
+  ctx.clearRect(0, 0, W, H);
+  ctx.fillStyle = '#0b0d11';
+  ctx.fillRect(0, 0, W, H);
+
+  const buf = getActiveBuffer();
+  if (!buf) return;
+
+  // Waveform Render logic
+  const chData = buf.getChannelData(0);
+  const skip = Math.ceil(chData.length / W);
+  
+  ctx.strokeStyle = isBypass ? '#4b5563' : '#2563eb';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  
+  for (let x = 0; x < W; x++) {
+    let min = 1, max = -1;
+    for (let j = 0; j < skip; j++) {
+      const v = chData[x * skip + j] || 0;
+      if (v < min) min = v;
+      if (v > max) max = v;
+    }
+    const yMin = (1 + min) / 2 * H;
+    const yMax = (1 + max) / 2 * H;
+    ctx.moveTo(x, yMin);
+    ctx.lineTo(x, yMax);
+  }
+  ctx.stroke();
+
+  // Segment Highlight Overlay Visuals
+  if (isCaptureMode) {
+    const startX = (captureStartOffset / buf.duration) * W;
+    const currX = (getCurrentTime() / buf.duration) * W;
+    ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+    ctx.fillRect(startX, 0, currX - startX, H);
+    
+    ctx.strokeStyle = 'rgba(239, 68, 68, 0.6)';
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(startX, 0); ctx.lineTo(startX, H);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Playhead scanline tracker overlay
+  const playheadSecs = getCurrentTime();
+  const playheadX = (playheadSecs / buf.duration) * W;
+  
+  ctx.strokeStyle = isCaptureMode ? '#ef4444' : '#3b82f6';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(playheadX, 0);
+  ctx.lineTo(playheadX, H);
+  ctx.stroke();
+
+  // Display fields
+  document.getElementById('timeCurrent').textContent = formatTime(playheadSecs);
+  document.getElementById('timeTotal').textContent = formatTime(buf.duration);
+}
+
+function runTrackingLoop() {
+  if (!isPlaying || isPaused) return;
+  renderTimelineFrame();
+  playheadAnimId = requestAnimationFrame(runTrackingLoop);
+}
+
+// Click Canvas Timeline to Seek Positions
+document.getElementById('waveCanvas').addEventListener('click', function(e) {
+  const buf = getActiveBuffer();
+  if (!buf) return;
+  
+  const rect = this.getBoundingClientRect();
+  const clickX = e.clientX - rect.left;
+  const percentage = clickX / rect.width;
+  
+  const targetTime = percentage * buf.duration;
+  seekToPosition(targetTime);
+});
+
+function seekToPosition(targetTime) {
+  const wasPlaying = isPlaying && !isPaused;
+  playbackOffset = targetTime;
+  
+  if (wasPlaying) {
+    executeAudioChain(playbackOffset);
+  } else {
+    renderTimelineFrame();
+  }
+}
+
+// ─── PLAYBACK CONTROLLER DECK ENGINE ──────────────────────────────────────────
+function executeAudioChain(offset) {
+  const ctx = getCtx();
+  if (currentSource) { try { currentSource.stop(); } catch(e){} currentSource = null; }
+
+  const bufferToPlay = getActiveBuffer();
+  if (!bufferToPlay) return;
+
+  currentSource = ctx.createBufferSource();
+  currentSource.buffer = bufferToPlay;
+
+  playbackGain = ctx.createGain();
+  playbackGain.gain.value = +document.getElementById('volSlider').value / 100;
+
+  currentSource.connect(playbackGain);
+  playbackGain.connect(ctx.destination);
+
+  playbackStartTime = ctx.currentTime - offset;
+  currentSource.start(0, offset);
+
+  currentSource.onended = () => {
+    // If stream clears natural boundaries reset head counters
+    if (isPlaying && !isPaused && (ctx.currentTime - playbackStartTime) >= bufferToPlay.duration - 0.05) {
+      isPlaying = false;
+      isPaused = false;
+      playbackOffset = 0;
+      updateControlDeckUI();
+      if (isCaptureMode) toggleSegmentCapture(); // Auto-stop segment capture on end of file
+      renderTimelineFrame();
+    }
+  };
+
+  isPlaying = true;
+  isPaused = false;
+  updateControlDeckUI();
+  cancelAnimationFrame(playheadAnimId);
+  runTrackingLoop();
+}
+
+// ─── RESTORE ORIGINAL LOGIC ──────────────────────────────────────────────────
+function restoreOriginalAudio() {
+  if (!originalBuffer) return;
+  stopPlayback();
+  sourceBuffer = originalBuffer;
+  playbackOffset = 0;
+  document.getElementById('restoreBtn').style.display = 'none'; // Re-hide button
+  triggerAutoProcess();
+  setStatus('ready', 'Restored Original Full Length Audio File');
+}
+
+function togglePlayback() {
+  if (!getActiveBuffer()) return;
+  if (isPlaying && !isPaused) {
+    // System active, engage pause state
+    const ctx = getCtx();
+    const duration = getActiveBuffer().duration;
+    playbackOffset = (ctx.currentTime - playbackStartTime) % duration;
+    if (currentSource) { try { currentSource.stop(); } catch(e){} currentSource = null; }
+    isPaused = true;
+    updateControlDeckUI();
+  } else {
+    // Resume/Start engine operations
+    executeAudioChain(playbackOffset);
+  }
+}
+
+function stopPlayback() {
+  if (currentSource) { try { currentSource.stop(); } catch(e){} currentSource = null; }
+  isPlaying = false;
+  isPaused = false;
+  playbackOffset = 0;
+  updateControlDeckUI();
+  renderTimelineFrame();
+}
+
+function updateControlDeckUI() {
+  const playBtn = document.getElementById('playPauseBtn');
+  if (isPlaying && !isPaused) {
+    playBtn.textContent = '⏸ Pause';
+    playBtn.className = 'btn';
+  } else if (isPaused) {
+    playBtn.textContent = '▶ Resume';
+    playBtn.className = 'btn primary';
+  } else {
+    playBtn.textContent = '▶ Play';
+    playBtn.className = 'btn primary';
+  }
+}
+
+// ─── LIVE SEGMENT EXTRACTION CUTTER (RE-SAMPLING ELEMENT SLICER) ──────────────
+function toggleSegmentCapture() {
+  const buf = getActiveBuffer();
+  if (!buf) return;
+
+  const btn = document.getElementById('captureBtn');
+
+  if (!isCaptureMode) {
+    // Set Start Marker Position
+    isCaptureMode = true;
+    captureStartOffset = getCurrentTime();
+    btn.textContent = '⏹️ Slice & Keep Segment';
+    btn.style.background = 'var(--danger-color)';
+    btn.style.color = '#fff';
+    setStatus('active', 'Capturing Segment Track... click button again to extract section.');
+  } else {
+    // Set End Marker Position and Perform Slice Extraction
+    isCaptureMode = false;
+    let captureEndOffset = getCurrentTime();
+    btn.textContent = '✂️ Capture Segment';
+    btn.style.background = '';
+    btn.style.color = '';
+
+    // Sort boundaries in case timeline was clicked or adjusted in reverse
+    if (captureStartOffset > captureEndOffset) {
+      let temp = captureStartOffset;
+      captureStartOffset = captureEndOffset;
+      captureEndOffset = temp;
+    }
+
+    const duration = captureEndOffset - captureStartOffset;
+    if (duration < 0.05) {
+      setStatus('ready', 'Extraction Cancelled: Selected segment was too brief');
+      renderTimelineFrame();
+      return;
+    }
+
+    // Isolate active dataset mappings
+    const baseTargetBuffer = sourceBuffer; 
+    const sr = baseTargetBuffer.sampleRate;
+    const startSample = Math.floor(captureStartOffset * sr);
+    const endSample = Math.floor(captureEndOffset * sr);
+    const sliceLength = endSample - startSample;
+
+    const ctx = getCtx();
+    const slicedBuffer = ctx.createBuffer(baseTargetBuffer.numberOfChannels, sliceLength, sr);
+
+    for (let ch = 0; ch < baseTargetBuffer.numberOfChannels; ch++) {
+      const channelData = baseTargetBuffer.getChannelData(ch);
+      const slicedData = slicedBuffer.getChannelData(ch);
+      // Fast block data transmission array block copy
+      slicedData.set(channelData.subarray(startSample, endSample));
+    }
+
+    // Inject slice directly into the master operational channel track
+    sourceBuffer = slicedBuffer;
+    
+    // Unhide the Escape/Restore button
+    document.getElementById('restoreBtn').style.display = 'inline-flex';
+    
+    stopPlayback();
+    playbackOffset = 0;
+    triggerAutoProcess();
+    setStatus('ready', `Successfully Extracted Custom Segment: ${duration.toFixed(2)}s`);
+  }
+}
+
+// ─── DISTRIBUTE FILE EXPORT MASTER GENERATOR ─────────────────────────────────
+async function downloadResult() {
+  if (!destroyedBuffer) return;
+  setStatus('active', 'Encoding Production WAV File...');
+
+  const samples = destroyedBuffer.getChannelData(0);
+  const sampleRate = destroyedBuffer.sampleRate;
+  
+  const wavBuffer = encodeWAV(samples, sampleRate);
+  const blob = new Blob([wavBuffer], { type: 'audio/wav' });
+  const url = URL.createObjectURL(blob);
+  
+  const downloadAnchor = document.createElement('a');
+  downloadAnchor.href = url;
+  downloadAnchor.download = 'processed_master_' + Date.now() + '.wav';
+  downloadAnchor.click();
+  URL.revokeObjectURL(url);
+  setStatus('ready', 'Master Audio Export Completed');
+}
+
+function encodeWAV(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+
+  const writeString = (offset, string) => {
+    for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+  };
+
+  writeString(0, 'RIFF');
+  view.setUint32(4, 36 + samples.length * 2, true);
+  writeString(8, 'WAVE');
+  writeString(12, 'fmt ');
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true); // Linear Pulse Code Modulation
+  view.setUint16(22, 1, true); // Monophonic Output Array Mode
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * 2, true);
+  view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true); // 16 Bit Depth Processing Resolution
+  writeString(36, 'data');
+  view.setUint32(40, samples.length * 2, true);
+
+  let offset = 44;
+  for (let i = 0; i < samples.length; i++, offset += 2) {
+    const s = Math.max(-1, Math.min(1, samples[i]));
+    view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+  }
+
+  return buffer;
+}
+</script>
+</body>
+</html>
