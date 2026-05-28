@@ -821,8 +821,8 @@ async function processAudioOffline(buffer, params) {
   // 3. WOW & FLUTTER MODULATION
   if (params.wob > 0) {
     const wobbled = new Float32Array(workLen);
-    const depth = params.wob * 0.015;
-    const speed = 2 + params.wob * 5;
+    const depth = params.wob * 0.03;
+    const speed = 2 + params.wob * 10;
     for (let i = 0; i < workLen; i++) {
       const offset = depth * Math.sin(2 * Math.PI * speed * i / sr);
       const srcPos = i + offset * sr * 0.02;
