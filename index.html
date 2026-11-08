@@ -322,6 +322,15 @@
     color: var(--text-primary);
   }
 
+  .btn-sm { padding: 8px 12px; font-size: 13px; }
+  .btn.loop-on { background: var(--accent-color); border-color: var(--accent-color); }
+  .intensity-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .intensity-input {
+    width: 110px; background: var(--bg-surface); border: 1px solid var(--border-color);
+    color: var(--text-primary); font-family: 'JetBrains Mono', monospace; font-size: 14px;
+    padding: 8px 10px; border-radius: 6px; outline: none;
+  }
+  .intensity-input:focus { border-color: var(--accent-color); }
   #fileInput { display: none; }
 </style>
 </head>
@@ -376,6 +385,9 @@
         </button>
         <button class="btn" id="stopBtn" onclick="stopPlayback()" disabled>
           ■ Stop
+        </button>
+        <button class="btn btn-sm" id="loopBtn" onclick="toggleLoop()" aria-pressed="false" title="Loop playback">
+          🔁 Loop
         </button>
         
         <button class="btn" id="captureBtn" onclick="toggleSegmentCapture()" disabled style="border-color: rgba(239, 68, 68, 0.3);">
@@ -500,6 +512,15 @@
     </div>
   </div>
 
+  <div class="panel">
+    <div class="panel-title">Intensity Multiplier</div>
+    <div class="intensity-row">
+      <input type="number" class="intensity-input" id="intensityInput" value="1" min="0.01" step="any"
+             oninput="onIntensityInput(false)" onchange="onIntensityInput(true)">
+      <span class="slider-desc">× slider range. Applies to every slider except Bit Depth and Downsample Rate (those get harsher by going lower).</span>
+    </div>
+  </div>
+
 </div>
 
 <script>
@@ -519,6 +540,7 @@ let playbackGain = null;
 let isPlaying = false;
 let isPaused = false;
 let isBypass = false;
+let isLooping = false;
 let playbackStartTime = 0;    
 let playbackOffset = 0;       
 
@@ -547,14 +569,14 @@ function updateSlider(type) {
   const map = {
     bit: ['bitSlider','bitVal', v => v],
     sr:  ['srSlider','srVal',  v => srLabel(+v)],
-    dist:['distSlider','distVal', v => v + '%'],
-    wob: ['wobSlider','wobVal', v => v + '%'],
-    noise:['noiseSlider','noiseVal', v => v + '%'],
-    stutter:['stutterSlider','stutterVal', v => v + '%'],
-    reverb:['reverbSlider','reverbVal', v => v + '%'],
-    pitch:['pitchSlider','pitchVal', v => (v>0?'+':'')+v],
-    vol:  ['volSlider','volVal', v => v+'%'],
-    bass: ['bassSlider','bassVal', v => (v>0?'+':'')+v+'dB'],
+    dist:['distSlider','distVal', v => fmtNum(v) + '%'],
+    wob: ['wobSlider','wobVal', v => fmtNum(v) + '%'],
+    noise:['noiseSlider','noiseVal', v => fmtNum(v) + '%'],
+    stutter:['stutterSlider','stutterVal', v => fmtNum(v) + '%'],
+    reverb:['reverbSlider','reverbVal', v => fmtNum(v) + '%'],
+    pitch:['pitchSlider','pitchVal', v => (v>0?'+':'')+fmtNum(v)],
+    vol:  ['volSlider','volVal', v => fmtNum(v)+'%'],
+    bass: ['bassSlider','bassVal', v => (v>0?'+':'')+fmtNum(v)+'dB'],
   };
   const [sliderId, valId, fmt] = map[type];
   const val = document.getElementById(sliderId).value;
@@ -570,6 +592,79 @@ function updateSlider(type) {
   if (dspSliders.includes(type) && sourceBuffer && !isBypass) {
     scheduleReprocess();
   }
+}
+
+function fmtNum(v) {
+  return (+v).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+// ─── LOOP + BACKGROUND PLAYBACK ──────────────────────────────────────────────
+// Looping uses the AudioBufferSourceNode's native loop, which runs on the audio
+// thread, so it keeps going gaplessly when the tab is hidden (no JS timers involved).
+function toggleLoop() {
+  isLooping = !isLooping;
+  const b = document.getElementById('loopBtn');
+  b.classList.toggle('loop-on', isLooping);
+  b.setAttribute('aria-pressed', String(isLooping));
+  if (currentSource) currentSource.loop = isLooping;
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (audioCtx && isPlaying && !isPaused && audioCtx.state !== 'running') {
+    audioCtx.resume().catch(() => {});
+  }
+  if (!document.hidden) renderTimelineFrame();
+});
+
+function syncMediaSession() {
+  if (!('mediaSession' in navigator)) return;
+  navigator.mediaSession.playbackState = (isPlaying && !isPaused) ? 'playing' : (isPaused ? 'paused' : 'none');
+}
+if ('mediaSession' in navigator) {
+  try {
+    navigator.mediaSession.metadata = new MediaMetadata({ title: 'Signal Processor Studio' });
+    navigator.mediaSession.setActionHandler('play', () => { if (!(isPlaying && !isPaused)) togglePlayback(); });
+    navigator.mediaSession.setActionHandler('pause', () => { if (isPlaying && !isPaused) togglePlayback(); });
+    navigator.mediaSession.setActionHandler('stop', () => stopPlayback());
+  } catch (e) {}
+}
+
+// ─── INTENSITY MULTIPLIER ────────────────────────────────────────────────────
+const INTENSITY_SLIDERS = {
+  distSlider:'dist', wobSlider:'wob', noiseSlider:'noise', stutterSlider:'stutter',
+  reverbSlider:'reverb', pitchSlider:'pitch', bassSlider:'bass', volSlider:'vol'
+};
+let intensity = 1;
+
+Object.keys(INTENSITY_SLIDERS).forEach(id => {
+  const el = document.getElementById(id);
+  el.dataset.baseMin = el.min;
+  el.dataset.baseMax = el.max;
+});
+
+function applyIntensity(mult) {
+  intensity = mult;
+  Object.entries(INTENSITY_SLIDERS).forEach(([id, key]) => {
+    const el = document.getElementById(id);
+    const baseMin = +el.dataset.baseMin, baseMax = +el.dataset.baseMax;
+    let min = baseMin < 0 ? baseMin * mult : baseMin;
+    let max = baseMax * mult;
+    if (mult >= 1) { min = Math.round(min); max = Math.round(max); el.step = 1; }
+    else { el.step = 'any'; }
+    el.max = max;
+    el.min = min;
+    el.value = Math.min(max, Math.max(min, +el.value));
+    updateSlider(key);
+  });
+}
+
+function onIntensityInput(commit) {
+  const inp = document.getElementById('intensityInput');
+  let v = parseFloat(inp.value);
+  if (!isFinite(v) || v <= 0) { if (commit) inp.value = intensity; return; }
+  v = Math.min(v, 1e6);
+  if (commit) inp.value = v;
+  if (v !== intensity) applyIntensity(v);
 }
 
 // ─── PRESET MAPS ─────────────────────────────────────────────────────────────
@@ -721,9 +816,13 @@ async function triggerAutoProcess() {
     bass:    +document.getElementById('bassSlider').value
   };
 
-  destroyedBuffer = await processAudioOffline(sourceBuffer, params);
-  renderTimelineFrame();
-  setStatus('ready', 'DSP Array Pipeline Ready');
+  try {
+    destroyedBuffer = await processAudioOffline(sourceBuffer, params);
+    renderTimelineFrame();
+    setStatus('ready', 'DSP Array Pipeline Ready');
+  } catch (e) {
+    setStatus('', 'DSP Error: ' + e.message);
+  }
 }
 
 function scheduleReprocess() {
@@ -780,8 +879,10 @@ async function processAudioOffline(buffer, params) {
 
   // 1. GLOBAL RATE SHIFT
   if (params.pitch !== 0) {
-    const rate = Math.pow(2, params.pitch * 1.5);
-    const newLen = Math.round(len / rate);
+    const maxOut = Math.max(sr * 600, len * 3);
+    const minRate = Math.max(1 / 64, len / maxOut);
+    const rate = Math.min(256, Math.max(minRate, Math.pow(2, params.pitch * 1.5)));
+    const newLen = Math.max(64, Math.round(len / rate));
     const pitched = new Float32Array(newLen);
     for (let i = 0; i < newLen; i++) {
       const srcPos = i * rate;
@@ -803,6 +904,7 @@ async function processAudioOffline(buffer, params) {
     let i = 0;
     while (i < workLen) {
       if (Math.random() < prob) {
+        const startI = i;
         const sz = chunkSizes[Math.floor(Math.random() * chunkSizes.length)];
         const loops = 1 + Math.floor(Math.random() * 4 * params.stutter);
         const slice = samples.slice(i, i + sz);
@@ -812,6 +914,7 @@ async function processAudioOffline(buffer, params) {
           }
           i += sz;
         }
+        if (i === startI) i++;
       } else {
         i++;
       }
@@ -878,9 +981,9 @@ async function processAudioOffline(buffer, params) {
   // 8. COMB SPACE PARALLEL REVERB
   if (params.reverb > 0) {
     const wet = params.reverb * 0.7;
-    const dry = 1 - wet * 0.5;
+    const dry = Math.max(0, 1 - wet * 0.5);
     const delays = [Math.round(0.029 * sr), Math.round(0.037 * sr), Math.round(0.041 * sr), Math.round(0.044 * sr)];
-    const feed = 0.4 + params.reverb * 0.45;
+    const feed = Math.min(0.98, 0.4 + params.reverb * 0.45);
     const combOut = new Float32Array(workLen);
     
     for (const d of delays) {
@@ -912,13 +1015,17 @@ async function processAudioOffline(buffer, params) {
   const lowShelfNode = offlineCtx.createBiquadFilter();
   lowShelfNode.type = 'lowshelf';
   lowShelfNode.frequency.value = 140; 
-  lowShelfNode.gain.value = params.bass;
+  lowShelfNode.gain.value = Math.max(-120, Math.min(120, params.bass));
 
   sourceNode.connect(lowShelfNode);
   lowShelfNode.connect(offlineCtx.destination);
   sourceNode.start(0);
 
   const finalRenderedResult = await offlineCtx.startRendering();
+  const outData = finalRenderedResult.getChannelData(0);
+  for (let i = 0; i < outData.length; i++) {
+    if (!isFinite(outData[i])) outData[i] = 0;
+  }
   return finalRenderedResult;
 }
 
@@ -1043,6 +1150,7 @@ function executeAudioChain(offset) {
 
   currentSource = ctx.createBufferSource();
   currentSource.buffer = bufferToPlay;
+  currentSource.loop = isLooping;
 
   playbackGain = ctx.createGain();
   playbackGain.gain.value = +document.getElementById('volSlider').value / 100;
@@ -1053,7 +1161,9 @@ function executeAudioChain(offset) {
   playbackStartTime = ctx.currentTime - offset;
   currentSource.start(0, offset);
 
+  const thisSource = currentSource;
   currentSource.onended = () => {
+    if (thisSource !== currentSource) return; // stale source (seek/pause/stop)
     // If stream clears natural boundaries reset head counters
     if (isPlaying && !isPaused && (ctx.currentTime - playbackStartTime) >= bufferToPlay.duration - 0.05) {
       isPlaying = false;
@@ -1109,6 +1219,7 @@ function stopPlayback() {
 }
 
 function updateControlDeckUI() {
+  syncMediaSession();
   const playBtn = document.getElementById('playPauseBtn');
   if (isPlaying && !isPaused) {
     playBtn.textContent = '⏸ Pause';
